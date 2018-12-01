@@ -13,7 +13,8 @@ import Element exposing (..)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
-import Http exposing (Http)
+import Http
+import Note exposing (Note, noteListDecoder)
 
 
 main =
@@ -26,15 +27,17 @@ main =
 
 
 type alias Model =
-    { input : String
+    { searchString : String
     , output : String
+    , searchResults : List Note
     }
 
 
 type Msg
     = NoOp
-    | InputText String
-    | ReverseText
+    | AcceptSearchString String
+    | Search
+    | SearchResults (Result Http.Error (List Note))
 
 
 type alias Flags =
@@ -43,7 +46,8 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-    ( { input = "App started"
+    ( { searchString = ""
+      , searchResults = []
       , output = "App started"
       }
     , Cmd.none
@@ -60,11 +64,31 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        InputText str ->
-            ( { model | input = str, output = str }, Cmd.none )
+        AcceptSearchString str ->
+            ( { model | searchString = str, output = str }, Cmd.none )
 
-        ReverseText ->
-            ( { model | output = model.output |> String.reverse |> String.toLower }, Cmd.none )
+        Search ->
+            ( model, fetchNotes <| "note=ilike." ++ model.searchString ++ "*" )
+
+        SearchResults results ->
+            case results of
+                Ok noteList ->
+                    ( { model | searchResults = noteList }, Cmd.none )
+
+                Err _ ->
+                    ( { model | output = "Http error" }, Cmd.none )
+
+
+
+-- note=ilike.*why*
+
+
+fetchNotes : String -> Cmd Msg
+fetchNotes searchString =
+    Http.get
+        { url = "http://localhost:3000/notes?" ++ searchString
+        , expect = Http.expectJson SearchResults Note.noteListDecoder
+        }
 
 
 
@@ -85,6 +109,7 @@ mainColumn model =
             [ title "Notes app"
             , inputText model
             , appButton
+            , viewNotes model.searchResults
             , outputDisplay model
             ]
         ]
@@ -104,8 +129,8 @@ outputDisplay model =
 inputText : Model -> Element Msg
 inputText model =
     Input.text []
-        { onChange = InputText
-        , text = model.input
+        { onChange = AcceptSearchString
+        , text = model.searchString
         , placeholder = Nothing
         , label = Input.labelLeft [] <| el [] (text "")
         }
@@ -115,9 +140,22 @@ appButton : Element Msg
 appButton =
     row [ centerX ]
         [ Input.button buttonStyle
-            { onPress = Just ReverseText
+            { onPress = Just Search
             , label = el [ centerX, centerY ] (text "Search")
             }
+        ]
+
+
+viewNotes : List Note -> Element msg
+viewNotes notelist =
+    column [] (List.map viewNote notelist)
+
+
+viewNote : Note -> Element msg
+viewNote note =
+    column [ width (px 400) ]
+        [ row [] [ text note.title ]
+        , row [] [ text note.content ]
         ]
 
 
