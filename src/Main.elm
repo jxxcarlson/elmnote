@@ -36,7 +36,9 @@ type alias Model =
     { searchString : String
     , output : String
     , searchResults : List Note
+    , maybeNoteToEdit : Maybe Note
     , appMode : AppMode
+    , message : String
     }
 
 
@@ -45,7 +47,11 @@ type Msg
     | AcceptSearchString String
     | Search
     | SearchResults (Result Http.Error (List Note))
+    | SearchResultForEditing (Result Http.Error (List Note))
     | EditNote String
+    | InputNoteText String
+    | NoteUpdated (Result Http.Error ())
+    | UpdateNote
 
 
 type alias Flags =
@@ -56,8 +62,10 @@ init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { searchString = ""
       , searchResults = []
-      , output = "App started"
+      , output = "xxx"
       , appMode = SearchMode
+      , maybeNoteToEdit = Nothing
+      , message = "App started"
       }
     , Cmd.none
     )
@@ -87,12 +95,54 @@ update msg model =
                 Err _ ->
                     ( { model | output = "Http error" }, Cmd.none )
 
+        SearchResultForEditing result ->
+            case result of
+                Ok noteList ->
+                    ( { model | maybeNoteToEdit = List.head noteList }, Cmd.none )
+
+                Err _ ->
+                    ( { model | output = "Http error" }, Cmd.none )
+
         EditNote id ->
-            ( { model | appMode = EditMode }, fetchNotes <| "id=eq." ++ id )
+            ( { model | appMode = EditMode }, fetchNoteToEdit id )
+
+        InputNoteText str ->
+            case model.maybeNoteToEdit of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just note ->
+                    let
+                        nextNote =
+                            { note | content = str }
+                    in
+                        ( { model | maybeNoteToEdit = Just nextNote }, Cmd.none )
+
+        NoteUpdated result ->
+            case result of
+                Ok _ ->
+                    ( model, Cmd.none )
+
+                Err err ->
+                    ( { model | message = httpErrorReport err }, Cmd.none )
+
+        UpdateNote ->
+            case model.maybeNoteToEdit of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just note ->
+                    ( model, updateNote note )
 
 
 
--- note=ilike.*why*
+-- Ok x ->
+--   ( { model | message = "Update OK"}, Cmd.none )
+-- Err _ ->
+--   ( { model | message = "Error updating note", Cmd.none )
+--
+-- HTTP Requests
+--
 
 
 fetchNotes : String -> Cmd Msg
@@ -101,6 +151,57 @@ fetchNotes searchString =
         { url = "http://localhost:3000/notes?" ++ searchString
         , expect = Http.expectJson SearchResults Note.noteListDecoder
         }
+
+
+fetchNoteToEdit : String -> Cmd Msg
+fetchNoteToEdit id =
+    Http.get
+        { url = "http://localhost:3000/notes?id=eq." ++ id
+        , expect = Http.expectJson SearchResultForEditing Note.noteListDecoder
+        }
+
+
+updateNote : Note -> Cmd Msg
+updateNote note =
+    Http.request
+        { method = "PATCH"
+        , headers =
+            [ Http.header "Authorization" "Bearer 037b75e1-ae57-49f1-8431-03b7c21f278c"
+            , Http.header "Content-Type" "application/json"
+            ]
+        , url = "http://localhost:3000/notes"
+        , body = Http.jsonBody <| Note.noteEncoder note
+        , expect = Http.expectWhatever NoteUpdated
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+type Error
+    = BadUrl String
+    | Timeout
+    | NetworkError
+    | BadStatus Int
+    | BadBody String
+
+
+httpErrorReport : Http.Error -> String
+httpErrorReport error =
+    case error of
+        Http.BadUrl str ->
+            "Bad url: " ++ str
+
+        Http.Timeout ->
+            "Timeout"
+
+        Http.NetworkError ->
+            "Network Error"
+
+        Http.BadStatus code ->
+            "BadStatus " ++ String.fromInt code
+
+        Http.BadBody str ->
+            "BadBody: " ++ str
 
 
 
@@ -120,11 +221,24 @@ mainColumn model =
         [ column [ centerX, spacing 20, width (px 500), height (px 760), clipY ]
             [ title "Notes"
             , inputText model
-            , appButton
-            , viewNotes model.searchResults
+            , row [ centerX, spacing 12 ] [ searchButton, updateButton model ]
+            , noteDisplay model
             , outputDisplay model
+            , messageDisplay model
             ]
         ]
+
+
+noteDisplay model =
+    case model.appMode of
+        SearchMode ->
+            viewNotes model.searchResults
+
+        EditMode ->
+            editNote model
+
+        CreateMode ->
+            editNote model
 
 
 title : String -> Element msg
@@ -138,6 +252,12 @@ outputDisplay model =
         [ text <| "Notes: " ++ (String.fromInt <| List.length <| model.searchResults) ]
 
 
+messageDisplay : Model -> Element msg
+messageDisplay model =
+    row [ centerX, Font.color white, Font.size 12 ]
+        [ text <| model.message ]
+
+
 inputText : Model -> Element Msg
 inputText model =
     Input.text []
@@ -148,14 +268,27 @@ inputText model =
         }
 
 
-appButton : Element Msg
-appButton =
+searchButton : Element Msg
+searchButton =
     row [ centerX ]
         [ Input.button buttonStyle
             { onPress = Just Search
             , label = el [ centerX, centerY ] (text "Search")
             }
         ]
+
+
+updateButton : Model -> Element Msg
+updateButton model =
+    if model.appMode /= EditMode then
+        Element.none
+    else
+        row [ centerX ]
+            [ Input.button buttonStyle
+                { onPress = Just UpdateNote
+                , label = el [ centerX, centerY ] (text "Update")
+                }
+            ]
 
 
 editButton : String -> Element Msg
@@ -186,14 +319,46 @@ titleElement note =
     column [ alignLeft ] [ text note.title ]
 
 
+editNote model =
+    let
+        editText =
+            case model.maybeNoteToEdit of
+                Nothing ->
+                    "Error: no note to edit"
+
+                Just note ->
+                    note.content
+    in
+        Input.multiline editorStyle
+            { onChange = InputNoteText
+            , text = editText
+            , placeholder = Nothing
+            , spellcheck = False
+            , label = Input.labelLeft [] <| el [] (text "")
+            }
+
+
 
 --
 -- STYLE
 --
 
 
+editorStyle =
+    [ width (px 500)
+    , Background.color white
+    , padding 8
+    , Font.size 12
+    , height (px 500)
+    ]
+
+
 charcoal =
     rgb255 40 40 40
+
+
+lightCharcoal =
+    rgb255 90 90 90
 
 
 white =
@@ -209,10 +374,12 @@ mainColumnStyle =
 
 
 buttonStyle =
-    [ Background.color white
-    , Font.color charcoal
+    [ Background.color lightCharcoal
+    , Font.color white
+    , Font.size 14
+    , Font.bold
     , paddingXY 15 8
-    , height (px 35)
+    , height (px 30)
     ]
 
 

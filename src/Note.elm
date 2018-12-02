@@ -1,6 +1,7 @@
-module Note exposing (Note, noteDecoder, noteListDecoder)
+module Note exposing (Note, noteEncoder, noteListDecoder)
 
 import Json.Decode as D
+import Json.Encode as E
 import Derberos.Date.Core exposing (DateRecord)
 import DateTime as DT
 
@@ -27,6 +28,17 @@ noteDecoder =
         (D.field "note" D.string)
         ((D.field "created_on" D.string) |> D.map DT.dateRecordOfString)
         ((D.field "modfied_on" D.string) |> D.map DT.dateRecordOfString)
+
+
+noteEncoder : Note -> E.Value
+noteEncoder note =
+    E.object
+        [ ( "id", E.string note.id )
+        , ( "title", E.string note.title )
+        , ( "note", E.string note.content )
+        , ( "created_on", E.string <| DT.stringOfDateRecord <| note.dateCreated )
+        , ( "modfied_on", E.string <| DT.stringOfDateRecord <| note.dateModified )
+        ]
 
 
 
