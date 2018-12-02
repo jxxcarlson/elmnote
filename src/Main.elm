@@ -26,10 +26,17 @@ main =
         }
 
 
+type AppMode
+    = SearchMode
+    | EditMode
+    | CreateMode
+
+
 type alias Model =
     { searchString : String
     , output : String
     , searchResults : List Note
+    , appMode : AppMode
     }
 
 
@@ -50,6 +57,7 @@ init flags =
     ( { searchString = ""
       , searchResults = []
       , output = "App started"
+      , appMode = SearchMode
       }
     , Cmd.none
     )
@@ -66,10 +74,10 @@ update msg model =
             ( model, Cmd.none )
 
         AcceptSearchString str ->
-            ( { model | searchString = str, output = str }, Cmd.none )
+            ( { model | searchString = str, output = str, appMode = SearchMode }, Cmd.none )
 
         Search ->
-            ( model, fetchNotes <| "note=ilike." ++ model.searchString ++ "*" )
+            ( { model | appMode = SearchMode }, fetchNotes <| "note=ilike." ++ model.searchString ++ "*" )
 
         SearchResults results ->
             case results of
@@ -80,7 +88,7 @@ update msg model =
                     ( { model | output = "Http error" }, Cmd.none )
 
         EditNote id ->
-            ( { model | output = id }, Cmd.none )
+            ( { model | appMode = EditMode }, fetchNotes <| "id=eq." ++ id )
 
 
 
