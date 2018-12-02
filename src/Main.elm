@@ -38,6 +38,7 @@ type Msg
     | AcceptSearchString String
     | Search
     | SearchResults (Result Http.Error (List Note))
+    | EditNote String
 
 
 type alias Flags =
@@ -78,6 +79,9 @@ update msg model =
                 Err _ ->
                     ( { model | output = "Http error" }, Cmd.none )
 
+        EditNote id ->
+            ( { model | output = id }, Cmd.none )
+
 
 
 -- note=ilike.*why*
@@ -105,8 +109,8 @@ view model =
 mainColumn : Model -> Element Msg
 mainColumn model =
     column mainColumnStyle
-        [ column [ centerX, spacing 20 ]
-            [ title "Notes app"
+        [ column [ centerX, spacing 20, width (px 500), height (px 760), clipY ]
+            [ title "Notes"
             , inputText model
             , appButton
             , viewNotes model.searchResults
@@ -117,13 +121,13 @@ mainColumn model =
 
 title : String -> Element msg
 title str =
-    row [ centerX, Font.bold ] [ text str ]
+    row [ centerX, Font.bold, Font.color white ] [ text str ]
 
 
 outputDisplay : Model -> Element msg
 outputDisplay model =
-    row [ centerX ]
-        [ text model.output ]
+    row [ centerX, Font.color white, Font.size 12 ]
+        [ text <| "Notes: " ++ (String.fromInt <| List.length <| model.searchResults) ]
 
 
 inputText : Model -> Element Msg
@@ -146,17 +150,32 @@ appButton =
         ]
 
 
-viewNotes : List Note -> Element msg
-viewNotes notelist =
-    column [] (List.map viewNote notelist)
-
-
-viewNote : Note -> Element msg
-viewNote note =
-    column [ width (px 400) ]
-        [ row [] [ text note.title ]
-        , row [] [ text note.content ]
+editButton : String -> Element Msg
+editButton id =
+    column [ alignRight ]
+        [ Input.button tinyButtonStyle
+            { onPress = Just (EditNote id)
+            , label = el [] (text "Edit")
+            }
         ]
+
+
+viewNotes : List Note -> Element Msg
+viewNotes notelist =
+    column [ spacing 12, scrollbarY, clipX, height (px 560) ] (List.map viewNote notelist)
+
+
+viewNote : Note -> Element Msg
+viewNote note =
+    column [ width (px 500), spacing 8, Background.color white, padding 8 ]
+        [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
+        , row [ Font.size 13 ] [ text <| removeFirstLine <| note.content ]
+        ]
+
+
+titleElement : Note -> Element Msg
+titleElement note =
+    column [ alignLeft ] [ text note.title ]
 
 
 
@@ -165,19 +184,52 @@ viewNote note =
 --
 
 
+charcoal =
+    rgb255 40 40 40
+
+
+white =
+    rgb255 240 240 240
+
+
 mainColumnStyle =
     [ centerX
     , centerY
-    , Background.color (rgb255 240 240 240)
+    , Background.color charcoal
     , paddingXY 20 20
     ]
 
 
 buttonStyle =
-    [ Background.color (rgb255 40 40 40)
-    , Font.color (rgb255 255 255 255)
+    [ Background.color white
+    , Font.color charcoal
     , paddingXY 15 8
+    , height (px 35)
     ]
+
+
+tinyButtonStyle =
+    [ Background.color charcoal
+    , Font.color white
+    , Font.size 11
+    , paddingXY 8 4
+    , height (px 15)
+    , alignRight
+    ]
+
+
+
+--
+-- Helpers
+--
+
+
+removeFirstLine : String -> String
+removeFirstLine str =
+    str
+        |> String.split "\n"
+        |> List.drop 1
+        |> String.join "\n"
 
 
 
