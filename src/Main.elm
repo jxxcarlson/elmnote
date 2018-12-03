@@ -23,6 +23,7 @@ import Time
 import Task
 import DateTime
 import Markdown
+import Keyboard exposing (Key(..))
 
 
 main =
@@ -52,6 +53,7 @@ type alias Model =
     , currentUuid : Maybe Uuid.Uuid
     , zone : Time.Zone
     , time : Time.Posix
+    , pressedKeys : List Key
     }
 
 
@@ -79,6 +81,7 @@ type Msg
     | ClearSearch
     | DeleteNote
     | NoteDeleted (Result Http.Error ())
+    | KeyMsg Keyboard.Msg
 
 
 type alias Flags =
@@ -98,13 +101,17 @@ init seed =
       , currentUuid = Nothing
       , zone = Time.utc
       , time = (Time.millisToPosix 0)
+      , pressedKeys = []
       }
     , Task.perform AdjustTimeZone Time.here
     )
 
 
 subscriptions model =
-    Time.every 1000 Tick
+    Sub.batch
+        [ Sub.map KeyMsg Keyboard.subscriptions
+        , Time.every 1000 Tick
+        ]
 
 
 
@@ -249,6 +256,11 @@ update msg model =
 
                 Err _ ->
                     ( { model | appMode = SearchMode }, fetchNotes model.searchString )
+
+        KeyMsg keyMsg ->
+            ( { model | pressedKeys = Keyboard.update keyMsg model.pressedKeys }
+            , Cmd.none
+            )
 
 
 
