@@ -14,6 +14,8 @@ import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Http
+import Random exposing (Seed, initialSeed, step)
+import Uuid
 import Note exposing (Note, noteListDecoder)
 
 
@@ -40,6 +42,8 @@ type alias Model =
     , newNoteText : String
     , appMode : AppMode
     , message : String
+    , currentSeed : Seed
+    , currentUuid : Maybe Uuid.Uuid
     }
 
 
@@ -61,14 +65,15 @@ type Msg
     | CreateNote
     | InputNewNoteText String
     | NoteCreated (Result Http.Error ())
+    | NewUuid
 
 
 type alias Flags =
     {}
 
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : Int -> ( Model, Cmd Msg )
+init seed =
     ( { searchString = ""
       , searchResults = []
       , output = "xxx"
@@ -76,6 +81,8 @@ init flags =
       , maybeNoteToEdit = Nothing
       , newNoteText = ""
       , message = "App started"
+      , currentSeed = initialSeed seed
+      , currentUuid = Nothing
       }
     , Cmd.none
     )
@@ -83,6 +90,12 @@ init flags =
 
 subscriptions model =
     Sub.none
+
+
+
+--
+-- UPDATE
+--
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -117,13 +130,19 @@ update msg model =
             ( { model | appMode = EditMode }, fetchNoteToEdit id )
 
         NewNote ->
-            ( { model | appMode = CreateMode, newNoteText = "" }, Cmd.none )
+            let
+                newModel =
+                    makeUuid model
+            in
+                ( { newModel | appMode = CreateMode, newNoteText = "" }, Cmd.none )
 
         InputNewNoteText str ->
             ( { model | newNoteText = str }, Cmd.none )
 
         CreateNote ->
-            ( { model | appMode = CreateMode, newNoteText = "" }, createNoteRequest model.newNoteText )
+            ( { model | appMode = CreateMode, newNoteText = "" }
+            , createNoteRequest model.newNoteText (maybeUuidText model.currentUuid)
+            )
 
         NoteCreated result ->
             case result of
@@ -161,14 +180,40 @@ update msg model =
                 Just note ->
                     ( model, updateNote note )
 
+        NewUuid ->
+            let
+                ( newUuid, newSeed ) =
+                    step Uuid.uuidGenerator model.currentSeed
+            in
+                ( { model
+                    | currentUuid = Just newUuid
+                    , currentSeed = newSeed
+                  }
+                , Cmd.none
+                )
 
 
--- Ok x ->
---   ( { model | message = "Update OK"}, Cmd.none )
--- Err _ ->
---   ( { model | message = "Error updating note", Cmd.none )
+
 --
--- HTTP Requests
+-- HELPERS
+--
+
+
+makeUuid : Model -> Model
+makeUuid model =
+    let
+        ( newUuid, newSeed ) =
+            step Uuid.uuidGenerator model.currentSeed
+    in
+        { model
+            | currentUuid = Just newUuid
+            , currentSeed = newSeed
+        }
+
+
+
+--
+-- HTTP
 --
 
 
@@ -206,13 +251,13 @@ updateNote note =
         }
 
 
-createNoteRequest : String -> Cmd Msg
-createNoteRequest newNoteText =
+createNoteRequest : String -> Maybe String -> Cmd Msg
+createNoteRequest newNoteText maybeUuidString =
     Http.request
         { method = "POST"
         , headers = [ Http.header "Authorization" token ]
         , url = "http://localhost:3000/notes"
-        , body = Http.jsonBody <| Note.newNoteEncoder newNoteText
+        , body = Http.jsonBody <| Note.newNoteEncoder newNoteText maybeUuidString
         , expect = Http.expectWhatever NoteCreated
         , timeout = Nothing
         , tracker = Nothing
@@ -271,7 +316,9 @@ mainColumn model =
                 ]
             , noteDisplay model
             , outputDisplay model
-            , messageDisplay model
+
+            -- , messageDisplay model
+            , viewUUID model
             ]
         ]
 
@@ -313,7 +360,7 @@ messageDisplay model =
 
 viewNotes : List Note -> Element Msg
 viewNotes notelist =
-    column [ spacing 12, scrollbarY, clipX, height (px 560) ] (List.map viewNote notelist)
+    column [ spacing 12, scrollbarY, clipX, height (px 520) ] (List.map viewNote notelist)
 
 
 viewNote : Note -> Element Msg
@@ -328,6 +375,30 @@ viewNote note =
 titleElement : Note -> Element Msg
 titleElement note =
     column [ alignLeft ] [ text note.title ]
+
+
+viewUUID : Model -> Element msg
+viewUUID model =
+    let
+        uuidText =
+            case model.currentUuid of
+                Nothing ->
+                    "No Uuid was created so far"
+
+                Just uuid ->
+                    "Current Uuid: " ++ Uuid.toString uuid
+    in
+        row [ Font.size 11, centerX, Font.color white, Font.italic ] [ text <| uuidText ]
+
+
+maybeUuidText : Maybe Uuid.Uuid -> Maybe String
+maybeUuidText maybeUuid =
+    case maybeUuid of
+        Nothing ->
+            Nothing
+
+        Just uuid ->
+            Just <| Uuid.toString uuid
 
 
 

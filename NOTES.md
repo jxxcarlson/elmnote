@@ -53,9 +53,12 @@ COPY api.notes FROM '/Users/carlson/dev/racket/note/notes.csv';
 - `curl http://localhost:3000/notes?note=ilike.*why*`
 - `curl http://localhost:3000/notes?title=037b75e1-ae57-49f1-8431-03b7c21f278c`
 
+
+curl http://localhost:3000/notes -X POST -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibm90ZXNfdXNlciJ9.zKIQmp43fuXaCQyaBZT6sLsJ0nyVLZHwQZHJIMAoXw8" -H "Content-Type: application/json" -d '{"title": "xxx", "note": "yyy"}'
+
 curl http://localhost:3000/notes?id=eq.e595bbd9-a7cb-40be-a153-22a6bb96bbcc -X PATCH -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibm90ZXNfdXNlciJ9.zKIQmp43fuXaCQyaBZT6sLsJ0nyVLZHwQZHJIMAoXw8" -H "Content-Type: application/json"  -d '{"note": "test\nxxxx\n"}'
 
-curl http://localhost:3000/notes?id=eq.15e7bfee-c195-4310-bf08-f1f7f0ebee4b
+curl http://localhost:3000/notes?id=eq.e595bbd9-a7cb-40be-a153-22a6bb96bbcc
 curl http://localhost:3000/notes?note=ilike.*why*
 
 [{"id":"15e7bfee-c195-4310-bf08-f1f7f0ebee4b","created_on":"2018-11-11T14:22:40","modfied_on":"2018-11-11T14:22:40","title":"Why Competition in the Politics Industry is Failing America","note":"Why Competition in the Politics Industry is Failing America\nHarvard Business School Review\nhttps://www.hbs.edu/competitiveness/Documents/why-competition-in-the-politics-industry-is-failing-america.pdf"}]
@@ -67,6 +70,7 @@ curl http://localhost:3000/notes?note=ilike.*why*
 
 037b75e1-ae57-49f1-8431-03b7c21f278c
 
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibm90ZXNfdXNlciJ9.zKIQmp43fuXaCQyaBZT6sLsJ0nyVLZHwQZHJIMAoXw8
 db-uri = "postgres://postgres:mysecretpassword@localhost/info"
 db-schema = "api"
 db-anon-role = "web_anon"

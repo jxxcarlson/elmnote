@@ -63,12 +63,18 @@ firstLine str =
         |> Maybe.withDefault ""
 
 
-newNoteEncoder : String -> E.Value
-newNoteEncoder content =
-    E.object
-        [ ( "note", E.string content )
-        , ( "title", E.string <| firstLine content )
-        ]
+newNoteEncoder : String -> Maybe String -> E.Value
+newNoteEncoder content maybeUuidString =
+    case maybeUuidString of
+        Nothing ->
+            E.null
+
+        Just uuid ->
+            E.object
+                [ ( "id", E.string uuid )
+                , ( "note", E.string content )
+                , ( "title", E.string <| firstLine content )
+                ]
 
 
 

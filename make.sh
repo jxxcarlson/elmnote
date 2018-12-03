@@ -1,1 +1,1 @@
-elm make --debug src/Main.elm
+elm make --debug src/Main.elm --output Main.js
