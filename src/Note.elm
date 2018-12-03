@@ -1,4 +1,11 @@
-module Note exposing (Note, noteEncoder, noteListDecoder)
+module Note
+    exposing
+        ( Note
+        , newNoteEncoder
+        , noteEncoder
+        , noteContentEncoder
+        , noteListDecoder
+        )
 
 import Json.Decode as D
 import Json.Encode as E
@@ -38,6 +45,29 @@ noteEncoder note =
         , ( "note", E.string note.content )
         , ( "created_on", E.string <| DT.stringOfDateRecord <| note.dateCreated )
         , ( "modfied_on", E.string <| DT.stringOfDateRecord <| note.dateModified )
+        ]
+
+
+noteContentEncoder : Note -> E.Value
+noteContentEncoder note =
+    E.object
+        [ ( "note", E.string note.content )
+        ]
+
+
+firstLine : String -> String
+firstLine str =
+    str
+        |> String.split "\n"
+        |> List.head
+        |> Maybe.withDefault ""
+
+
+newNoteEncoder : String -> E.Value
+newNoteEncoder content =
+    E.object
+        [ ( "note", E.string content )
+        , ( "title", E.string <| firstLine content )
         ]
 
 

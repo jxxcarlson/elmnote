@@ -37,9 +37,14 @@ type alias Model =
     , output : String
     , searchResults : List Note
     , maybeNoteToEdit : Maybe Note
+    , newNoteText : String
     , appMode : AppMode
     , message : String
     }
+
+
+
+-- MSG
 
 
 type Msg
@@ -52,6 +57,10 @@ type Msg
     | InputNoteText String
     | NoteUpdated (Result Http.Error ())
     | UpdateNote
+    | NewNote
+    | CreateNote
+    | InputNewNoteText String
+    | NoteCreated (Result Http.Error ())
 
 
 type alias Flags =
@@ -65,6 +74,7 @@ init flags =
       , output = "xxx"
       , appMode = SearchMode
       , maybeNoteToEdit = Nothing
+      , newNoteText = ""
       , message = "App started"
       }
     , Cmd.none
@@ -106,6 +116,23 @@ update msg model =
         EditNote id ->
             ( { model | appMode = EditMode }, fetchNoteToEdit id )
 
+        NewNote ->
+            ( { model | appMode = CreateMode, newNoteText = "" }, Cmd.none )
+
+        InputNewNoteText str ->
+            ( { model | newNoteText = str }, Cmd.none )
+
+        CreateNote ->
+            ( { model | appMode = CreateMode, newNoteText = "" }, createNoteRequest model.newNoteText )
+
+        NoteCreated result ->
+            case result of
+                Ok _ ->
+                    ( { model | message = "Note created" }, Cmd.none )
+
+                Err err ->
+                    ( { model | message = httpErrorReport err }, Cmd.none )
+
         InputNoteText str ->
             case model.maybeNoteToEdit of
                 Nothing ->
@@ -121,7 +148,7 @@ update msg model =
         NoteUpdated result ->
             case result of
                 Ok _ ->
-                    ( model, Cmd.none )
+                    ( { model | message = "Note updated" }, Cmd.none )
 
                 Err err ->
                     ( { model | message = httpErrorReport err }, Cmd.none )
@@ -161,17 +188,32 @@ fetchNoteToEdit id =
         }
 
 
+token : String
+token =
+    "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibm90ZXNfdXNlciJ9.zKIQmp43fuXaCQyaBZT6sLsJ0nyVLZHwQZHJIMAoXw8"
+
+
 updateNote : Note -> Cmd Msg
 updateNote note =
     Http.request
         { method = "PATCH"
-        , headers =
-            [ Http.header "Authorization" "Bearer 037b75e1-ae57-49f1-8431-03b7c21f278c"
-            , Http.header "Content-Type" "application/json"
-            ]
-        , url = "http://localhost:3000/notes"
-        , body = Http.jsonBody <| Note.noteEncoder note
+        , headers = [ Http.header "Authorization" token ]
+        , url = "http://localhost:3000/notes?id=eq." ++ note.id
+        , body = Http.jsonBody <| Note.noteContentEncoder note
         , expect = Http.expectWhatever NoteUpdated
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+createNoteRequest : String -> Cmd Msg
+createNoteRequest newNoteText =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" token ]
+        , url = "http://localhost:3000/notes"
+        , body = Http.jsonBody <| Note.newNoteEncoder newNoteText
+        , expect = Http.expectWhatever NoteCreated
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -212,7 +254,7 @@ httpErrorReport error =
 
 view : Model -> Html Msg
 view model =
-    Element.layout [] (mainColumn model)
+    Element.layout [ Background.color (rgb255 80 80 80) ] (mainColumn model)
 
 
 mainColumn : Model -> Element Msg
@@ -220,13 +262,24 @@ mainColumn model =
     column mainColumnStyle
         [ column [ centerX, spacing 20, width (px 500), height (px 760), clipY ]
             [ title "Notes"
-            , inputText model
-            , row [ centerX, spacing 12 ] [ searchButton, updateButton model ]
+            , inputSearchText model
+            , row [ centerX, spacing 12 ]
+                [ searchButton
+                , updateButton model
+                , newNoteButton model
+                , createButton model
+                ]
             , noteDisplay model
             , outputDisplay model
             , messageDisplay model
             ]
         ]
+
+
+
+--
+-- DISPLAY
+--
 
 
 noteDisplay model =
@@ -238,7 +291,7 @@ noteDisplay model =
             editNote model
 
         CreateMode ->
-            editNote model
+            createNote model
 
 
 title : String -> Element msg
@@ -258,14 +311,74 @@ messageDisplay model =
         [ text <| model.message ]
 
 
-inputText : Model -> Element Msg
-inputText model =
+viewNotes : List Note -> Element Msg
+viewNotes notelist =
+    column [ spacing 12, scrollbarY, clipX, height (px 560) ] (List.map viewNote notelist)
+
+
+viewNote : Note -> Element Msg
+viewNote note =
+    column [ width (px 500), spacing 8, Background.color white, padding 8 ]
+        [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
+        , row [ Font.size 13 ] [ text <| removeFirstLine <| note.content ]
+        , row [ Font.size 11, Font.italic ] [ text <| note.id ]
+        ]
+
+
+titleElement : Note -> Element Msg
+titleElement note =
+    column [ alignLeft ] [ text note.title ]
+
+
+
+--
+-- INPUT
+---
+
+
+inputSearchText : Model -> Element Msg
+inputSearchText model =
     Input.text []
         { onChange = AcceptSearchString
         , text = model.searchString
         , placeholder = Nothing
         , label = Input.labelLeft [] <| el [] (text "")
         }
+
+
+editNote model =
+    let
+        editText =
+            case model.maybeNoteToEdit of
+                Nothing ->
+                    "Error: no note to edit"
+
+                Just note ->
+                    note.content
+    in
+        Input.multiline editorStyle
+            { onChange = InputNoteText
+            , text = editText
+            , placeholder = Nothing
+            , spellcheck = False
+            , label = Input.labelLeft [] <| el [] (text "")
+            }
+
+
+createNote model =
+    Input.multiline editorStyle
+        { onChange = InputNewNoteText
+        , text = model.newNoteText
+        , placeholder = Nothing
+        , spellcheck = False
+        , label = Input.labelLeft [] <| el [] (text "")
+        }
+
+
+
+--
+-- BUTTON
+--
 
 
 searchButton : Element Msg
@@ -291,6 +404,32 @@ updateButton model =
             ]
 
 
+createButton : Model -> Element Msg
+createButton model =
+    if model.appMode /= CreateMode then
+        Element.none
+    else
+        row [ centerX ]
+            [ Input.button buttonStyle
+                { onPress = Just CreateNote
+                , label = el [ centerX, centerY ] (text "Create")
+                }
+            ]
+
+
+newNoteButton : Model -> Element Msg
+newNoteButton model =
+    if model.appMode == CreateMode then
+        Element.none
+    else
+        column [ alignRight ]
+            [ Input.button buttonStyle
+                { onPress = Just (NewNote)
+                , label = el [] (text "New")
+                }
+            ]
+
+
 editButton : String -> Element Msg
 editButton id =
     column [ alignRight ]
@@ -299,43 +438,6 @@ editButton id =
             , label = el [] (text "Edit")
             }
         ]
-
-
-viewNotes : List Note -> Element Msg
-viewNotes notelist =
-    column [ spacing 12, scrollbarY, clipX, height (px 560) ] (List.map viewNote notelist)
-
-
-viewNote : Note -> Element Msg
-viewNote note =
-    column [ width (px 500), spacing 8, Background.color white, padding 8 ]
-        [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
-        , row [ Font.size 13 ] [ text <| removeFirstLine <| note.content ]
-        ]
-
-
-titleElement : Note -> Element Msg
-titleElement note =
-    column [ alignLeft ] [ text note.title ]
-
-
-editNote model =
-    let
-        editText =
-            case model.maybeNoteToEdit of
-                Nothing ->
-                    "Error: no note to edit"
-
-                Just note ->
-                    note.content
-    in
-        Input.multiline editorStyle
-            { onChange = InputNoteText
-            , text = editText
-            , placeholder = Nothing
-            , spellcheck = False
-            , label = Input.labelLeft [] <| el [] (text "")
-            }
 
 
 
