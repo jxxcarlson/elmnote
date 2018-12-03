@@ -5,6 +5,9 @@ module DateTime
         , stringOfDateRecord
         , europeanStringOfDateRecord
         , usaStringOfDateRecord
+        , parseDateRecord
+        , digit
+        , digitPair
         )
 
 import Parser exposing (..)
@@ -80,14 +83,56 @@ parseDateRecord =
     succeed DateRecord
         |= int
         |. symbol "-"
-        |= int
+        |= digitPair
         |. symbol "-"
-        |= int
+        |= digitPair
         |. symbol "T"
-        |= int
+        |= digitPair
         |. symbol ":"
-        |= int
+        |= digitPair
         |. symbol ":"
-        |= int
+        |= digitPair
         |= succeed 0
         |= succeed Time.utc
+
+
+digit : Parser String
+digit =
+    getChompedString <|
+        succeed ()
+            |. chompIf (\c -> Char.isDigit c)
+
+
+type DigitPair
+    = DigitPair String String
+
+
+stringOfDigitPair : DigitPair -> String
+stringOfDigitPair (DigitPair a b) =
+    a ++ b
+
+
+valueOfDigitPair : DigitPair -> Int
+valueOfDigitPair digitPair_ =
+    digitPair_
+        |> stringOfDigitPair
+        |> normalize
+        |> String.toInt
+        |> Maybe.withDefault 0
+
+
+normalize : String -> String
+normalize str =
+    if String.left 1 str == "0" then
+        String.dropLeft 1 str
+    else
+        str
+
+
+digitPair : Parser Int
+digitPair =
+    (succeed DigitPair
+        |= digit
+        |= digit
+    )
+        |> Parser.map valueOfDigitPair

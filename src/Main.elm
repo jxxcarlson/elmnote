@@ -177,10 +177,10 @@ update msg model =
         NoteUpdated result ->
             case result of
                 Ok _ ->
-                    ( { model | message = "Note updated" }, Cmd.none )
+                    ( { model | message = "Note updated", appMode = SearchMode }, Cmd.none )
 
                 Err err ->
-                    ( { model | message = httpErrorReport err }, Cmd.none )
+                    ( { model | message = httpErrorReport err, appMode = SearchMode }, Cmd.none )
 
         UpdateNote ->
             case model.maybeNoteToEdit of

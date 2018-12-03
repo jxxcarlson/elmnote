@@ -51,9 +51,14 @@ noteEncoder note =
 
 noteContentEncoder : Note -> E.Value
 noteContentEncoder note =
-    E.object
-        [ ( "note", E.string note.content )
-        ]
+    let
+        title =
+            firstLine note.content
+    in
+        E.object
+            [ ( "title", E.string title )
+            , ( "note", E.string note.content )
+            ]
 
 
 firstLine : String -> String
