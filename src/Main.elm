@@ -17,6 +17,8 @@ import Http
 import Random exposing (Seed, initialSeed, step)
 import Uuid
 import Note exposing (Note, noteListDecoder)
+import Time
+import Task
 
 
 main =
@@ -44,6 +46,8 @@ type alias Model =
     , message : String
     , currentSeed : Seed
     , currentUuid : Maybe Uuid.Uuid
+    , zone : Time.Zone
+    , time : Time.Posix
     }
 
 
@@ -66,6 +70,8 @@ type Msg
     | InputNewNoteText String
     | NoteCreated (Result Http.Error ())
     | NewUuid
+    | Tick Time.Posix
+    | AdjustTimeZone Time.Zone
 
 
 type alias Flags =
@@ -83,8 +89,10 @@ init seed =
       , message = "App started"
       , currentSeed = initialSeed seed
       , currentUuid = Nothing
+      , zone = Time.utc
+      , time = (Time.millisToPosix 0)
       }
-    , Cmd.none
+    , Task.perform AdjustTimeZone Time.here
     )
 
 
@@ -191,6 +199,16 @@ update msg model =
                   }
                 , Cmd.none
                 )
+
+        Tick newTime ->
+            ( { model | time = newTime }
+            , Cmd.none
+            )
+
+        AdjustTimeZone newZone ->
+            ( { model | zone = newZone }
+            , Cmd.none
+            )
 
 
 
