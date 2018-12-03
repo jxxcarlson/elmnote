@@ -59,7 +59,15 @@ curl http://localhost:3000/notes -X POST -H "Authorization: Bearer eyJhbGciOiJIU
 curl http://localhost:3000/notes?id=eq.e595bbd9-a7cb-40be-a153-22a6bb96bbcc -X PATCH -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibm90ZXNfdXNlciJ9.zKIQmp43fuXaCQyaBZT6sLsJ0nyVLZHwQZHJIMAoXw8" -H "Content-Type: application/json"  -d '{"note": "test\nxxxx\n"}'
 
 curl http://localhost:3000/notes?id=eq.e595bbd9-a7cb-40be-a153-22a6bb96bbcc
+curl http://localhost:3000/notes?title=ilike.*test*
 curl http://localhost:3000/notes?note=ilike.*why*
+
+[{"id":"f463ec52-8f43-4ab0-9a27-6506b0b59bc7","created_on":"2018-10-30T14:13:10","modfied_on":"2018-10-30T14:13:10","title":"This is a test.","note":"This is a test."},
+
+ {"id":"5a64c5db-0f26-4385-80c6-113e5e8b06ce","created_on":"2018-10-30T14:13:10","modfied_on":"2018-10-30T14:13:10","title":"MathJax: http://docs.mathjax.org/en/latest/api/hub.html?highlight=elements // 2018-10-29","note":"MathJax: http://docs.mathjax.org/en/latest/api/hub.html?highlight=elements // 2018-10-29"},
+
+ {"id":"6fca9b47-352d-4c7c-b585-15c0d2ef6b14","created_on":"2018-12-03T04:34:19","modfied_on":"2018-12-03T04:34:19","title":"Test","note":"Test\nABC\nDEF\n\n"}]
+
 
 [{"id":"15e7bfee-c195-4310-bf08-f1f7f0ebee4b","created_on":"2018-11-11T14:22:40","modfied_on":"2018-11-11T14:22:40","title":"Why Competition in the Politics Industry is Failing America","note":"Why Competition in the Politics Industry is Failing America\nHarvard Business School Review\nhttps://www.hbs.edu/competitiveness/Documents/why-competition-in-the-politics-industry-is-failing-america.pdf"}]
 

@@ -77,6 +77,8 @@ type Msg
     | Tick Time.Posix
     | AdjustTimeZone Time.Zone
     | ClearSearch
+    | DeleteNote
+    | NoteDeleted (Result Http.Error ())
 
 
 type alias Flags =
@@ -160,7 +162,14 @@ update msg model =
         NoteCreated result ->
             case result of
                 Ok _ ->
-                    ( { model | message = "Note created" }, Cmd.none )
+                    case maybeUuidText model.currentUuid of
+                        Nothing ->
+                            ( { model | message = "Note created" }, Cmd.none )
+
+                        Just uuidString ->
+                            ( { model | message = "Note created", appMode = SearchMode }
+                            , fetchNote <| uuidString
+                            )
 
                 Err err ->
                     ( { model | message = httpErrorReport err }, Cmd.none )
@@ -222,6 +231,24 @@ update msg model =
 
         ClearSearch ->
             ( { model | searchResults = [], searchString = "" }, Cmd.none )
+
+        DeleteNote ->
+            case model.maybeNoteToEdit of
+                Nothing ->
+                    ( { model | message = "No note to delete" }, Cmd.none )
+
+                Just note ->
+                    ( { model | message = "Note created", appMode = SearchMode }
+                    , deleteNote note
+                    )
+
+        NoteDeleted result ->
+            case result of
+                Ok _ ->
+                    ( { model | appMode = SearchMode }, fetchNotes model.searchString )
+
+                Err _ ->
+                    ( { model | appMode = SearchMode }, fetchNotes model.searchString )
 
 
 
@@ -344,6 +371,19 @@ createNoteRequest newNoteText maybeUuidString posixTime =
         }
 
 
+deleteNote : Note -> Cmd Msg
+deleteNote note =
+    Http.request
+        { method = "DELETE"
+        , headers = [ Http.header "Authorization" token ]
+        , url = "http://localhost:3000/notes?id=eq." ++ note.id
+        , body = Http.jsonBody <| Note.noteContentEncoder note
+        , expect = Http.expectWhatever NoteDeleted
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 type Error
     = BadUrl String
     | Timeout
@@ -389,7 +429,8 @@ mainColumn model =
             [ title "Notes"
             , inputSearchText model
             , row [ centerX, spacing 12 ]
-                [ clearButton model
+                [ deleteButton model
+                , clearButton model
                 , searchButton
                 , updateButton model
                 , newNoteButton model
@@ -574,6 +615,19 @@ updateButton model =
             [ Input.button buttonStyle
                 { onPress = Just UpdateNote
                 , label = el [ centerX, centerY ] (text "Update")
+                }
+            ]
+
+
+deleteButton : Model -> Element Msg
+deleteButton model =
+    if model.appMode /= EditMode then
+        Element.none
+    else
+        row [ centerX ]
+            [ Input.button buttonStyle
+                { onPress = Just DeleteNote
+                , label = el [ centerX, centerY ] (text "Delete")
                 }
             ]
 
