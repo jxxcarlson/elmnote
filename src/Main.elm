@@ -130,7 +130,7 @@ update msg model =
             ( { model | searchString = str, output = str, appMode = SearchMode }, Cmd.none )
 
         Search ->
-            ( { model | appMode = SearchMode }, fetchNotes <| model.searchString )
+            handleSearch model
 
         SearchResults results ->
             case results of
@@ -152,19 +152,13 @@ update msg model =
             ( { model | appMode = EditMode }, fetchNoteToEdit id )
 
         NewNote ->
-            let
-                newModel =
-                    makeUuid model
-            in
-                ( { newModel | appMode = CreateMode, newNoteText = "" }, Cmd.none )
+            handleNewNote model
 
         InputNewNoteText str ->
             ( { model | newNoteText = str }, Cmd.none )
 
         CreateNote ->
-            ( { model | appMode = CreateMode, newNoteText = "" }
-            , createNoteRequest model.newNoteText (maybeUuidText model.currentUuid) model.time
-            )
+            handleCreateNote model
 
         NoteCreated result ->
             case result of
@@ -207,12 +201,7 @@ update msg model =
                     ( { model | message = httpErrorReport err }, Cmd.none )
 
         UpdateNote ->
-            case model.maybeNoteToEdit of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just note ->
-                    ( model, updateNote note )
+            handleUpdateNote model
 
         NewUuid ->
             let
@@ -237,7 +226,7 @@ update msg model =
             )
 
         ClearSearch ->
-            ( { model | searchResults = [], searchString = "" }, Cmd.none )
+            handleClearSearch model
 
         DeleteNote ->
             case model.maybeNoteToEdit of
@@ -258,9 +247,72 @@ update msg model =
                     ( { model | appMode = SearchMode }, fetchNotes model.searchString )
 
         KeyMsg keyMsg ->
-            ( { model | pressedKeys = Keyboard.update keyMsg model.pressedKeys }
-            , Cmd.none
-            )
+            let
+                nextModel =
+                    { model | pressedKeys = Debug.log "KEYS" <| Keyboard.update keyMsg model.pressedKeys }
+            in
+                handleKeys nextModel
+
+
+handleKeys : Model -> ( Model, Cmd Msg )
+handleKeys model =
+    case model.pressedKeys of
+        [ Character "n", Control ] ->
+            handleNewNote model
+
+        [ Character "c", Control ] ->
+            handleCreateNote model
+
+        [ Character "x", Control ] ->
+            handleClearSearch model
+
+        [ Character "=", Control ] ->
+            handleSearch model
+
+        [ Character "u", Control ] ->
+            handleUpdateNote model
+
+        _ ->
+            ( model, Cmd.none )
+
+
+handleNewNote : Model -> ( Model, Cmd Msg )
+handleNewNote model =
+    let
+        newModel =
+            makeUuid model
+    in
+        ( { newModel | appMode = CreateMode, newNoteText = "", pressedKeys = [] }, Cmd.none )
+
+
+handleCreateNote : Model -> ( Model, Cmd Msg )
+handleCreateNote model =
+    ( { model | appMode = CreateMode, newNoteText = "", pressedKeys = [] }
+    , createNoteRequest model.newNoteText (maybeUuidText model.currentUuid) model.time
+    )
+
+
+handleClearSearch : Model -> ( Model, Cmd Msg )
+handleClearSearch model =
+    ( { model | searchResults = [], searchString = "", pressedKeys = [] }, Cmd.none )
+
+
+handleSearch : Model -> ( Model, Cmd Msg )
+handleSearch model =
+    ( { model | appMode = SearchMode }, fetchNotes <| model.searchString )
+
+
+handleUpdateNote : Model -> ( Model, Cmd Msg )
+handleUpdateNote model =
+    if model.appMode /= EditMode then
+        ( model, Cmd.none )
+    else
+        case model.maybeNoteToEdit of
+            Nothing ->
+                ( model, Cmd.none )
+
+            Just note ->
+                ( { model | pressedKeys = [] }, updateNote note )
 
 
 
