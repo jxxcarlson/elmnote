@@ -54,6 +54,8 @@ type alias Model =
     , zone : Time.Zone
     , time : Time.Posix
     , pressedKeys : List Key
+    , imageUrl : String
+    , imageState : ImageState
     }
 
 
@@ -82,6 +84,13 @@ type Msg
     | DeleteNote
     | NoteDeleted (Result Http.Error ())
     | KeyMsg Keyboard.Msg
+    | AcceptImageUrl String
+    | ToggleImage
+
+
+type ImageState
+    = ImageRestingState
+    | ImageInputState
 
 
 type alias Flags =
@@ -102,6 +111,8 @@ init seed =
       , zone = Time.utc
       , time = (Time.millisToPosix 0)
       , pressedKeys = []
+      , imageUrl = ""
+      , imageState = ImageRestingState
       }
     , Task.perform AdjustTimeZone Time.here
     )
@@ -253,6 +264,18 @@ update msg model =
             in
                 handleKeys nextModel
 
+        AcceptImageUrl url ->
+            ( { model | imageUrl = url }, Cmd.none )
+
+        ToggleImage ->
+            handleInsertImage model
+
+
+
+--
+-- KEYBOARD
+--
+
 
 handleKeys : Model -> ( Model, Cmd Msg )
 handleKeys model =
@@ -271,6 +294,12 @@ handleKeys model =
 
         [ Character "u", Control ] ->
             handleUpdateNote model
+
+        [ Character "e", Control ] ->
+            handleEditNote model
+
+        [ Character "i", Control ] ->
+            handleInsertImage model
 
         _ ->
             ( model, Cmd.none )
@@ -313,6 +342,59 @@ handleUpdateNote model =
 
             Just note ->
                 ( { model | pressedKeys = [] }, updateNote note )
+
+
+handleEditNote : Model -> ( Model, Cmd Msg )
+handleEditNote model =
+    case List.head model.searchResults of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just note ->
+            ( { model
+                | appMode = EditMode
+                , pressedKeys = []
+                , maybeNoteToEdit = Just note
+              }
+            , Cmd.none
+            )
+
+
+handleInsertImage : Model -> ( Model, Cmd Msg )
+handleInsertImage model =
+    if model.appMode /= EditMode && model.appMode /= CreateMode then
+        ( model, Cmd.none )
+    else
+        case model.imageState of
+            ImageInputState ->
+                appendImageUrl model
+
+            -- ( { model | imageState = ImageRestingState }, Cmd.none )
+            ImageRestingState ->
+                ( { model | imageState = ImageInputState }, Cmd.none )
+
+
+appendImageUrl model =
+    let
+        url_ =
+            "![Image](" ++ model.imageUrl ++ "#large)"
+    in
+        case model.maybeNoteToEdit of
+            Nothing ->
+                ( { model | pressedKeys = [], imageState = ImageRestingState }, Cmd.none )
+
+            Just note ->
+                let
+                    nextNote =
+                        { note | content = note.content ++ "\n" ++ url_ }
+                in
+                    ( { model
+                        | pressedKeys = []
+                        , imageState = ImageRestingState
+                        , imageUrl = ""
+                      }
+                    , updateNote nextNote
+                    )
 
 
 
@@ -491,10 +573,11 @@ mainColumn model =
     column mainColumnStyle
         [ column [ centerX, spacing 20, width (px 500), height (px 760), clipY ]
             [ title "Notes"
-            , inputSearchText model
+            , searchOrImageUrl model
             , row [ centerX, spacing 12 ]
                 [ deleteButton model
                 , clearButton model
+                , imageInsertButton model
                 , searchButton
                 , updateButton model
                 , newNoteButton model
@@ -508,6 +591,16 @@ mainColumn model =
             , row [ centerX, Font.size 11, Font.color white ] [ text <| "UTC " ++ dateTimeString model ]
             ]
         ]
+
+
+searchOrImageUrl : Model -> Element Msg
+searchOrImageUrl model =
+    case model.imageState of
+        ImageRestingState ->
+            inputSearchText model
+
+        ImageInputState ->
+            inputImageUrl model
 
 
 
@@ -612,6 +705,16 @@ inputSearchText model =
         }
 
 
+inputImageUrl : Model -> Element Msg
+inputImageUrl model =
+    Input.text [ Background.color (rgb255 240 240 255) ]
+        { onChange = AcceptImageUrl
+        , text = model.imageUrl
+        , placeholder = Nothing
+        , label = Input.labelAbove [ Font.color white ] <| el [] (text "Image location")
+        }
+
+
 editNote model =
     let
         editText =
@@ -666,6 +769,19 @@ clearButton model =
             [ Input.button buttonStyle
                 { onPress = Just ClearSearch
                 , label = el [ centerX, centerY ] (text "Clear")
+                }
+            ]
+
+
+imageInsertButton : Model -> Element Msg
+imageInsertButton model =
+    if model.appMode /= EditMode && model.appMode /= CreateMode then
+        Element.none
+    else
+        row [ centerX ]
+            [ Input.button buttonStyle
+                { onPress = Just ToggleImage
+                , label = el [ centerX, centerY ] (text "Image")
                 }
             ]
 
