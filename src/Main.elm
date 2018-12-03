@@ -14,6 +14,7 @@ import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Http
+import Html.Attributes
 import Derberos.Date.Core as DateCore exposing (DateRecord)
 import Random exposing (Seed, initialSeed, step)
 import Uuid
@@ -21,6 +22,7 @@ import Note exposing (Note, noteListDecoder)
 import Time
 import Task
 import DateTime
+import Markdown
 
 
 main =
@@ -177,10 +179,15 @@ update msg model =
         NoteUpdated result ->
             case result of
                 Ok _ ->
-                    ( { model | message = "Note updated", appMode = SearchMode }, Cmd.none )
+                    case model.maybeNoteToEdit of
+                        Nothing ->
+                            ( { model | message = "Note updated", appMode = SearchMode }, Cmd.none )
+
+                        Just note ->
+                            ( { model | message = "Note updated", appMode = SearchMode }, fetchNote <| note.id )
 
                 Err err ->
-                    ( { model | message = httpErrorReport err, appMode = SearchMode }, Cmd.none )
+                    ( { model | message = httpErrorReport err }, Cmd.none )
 
         UpdateNote ->
             case model.maybeNoteToEdit of
@@ -263,6 +270,14 @@ fetchNotes searchString =
             { url = "http://localhost:3000/notes?" ++ queryString
             , expect = Http.expectJson SearchResults Note.noteListDecoder
             }
+
+
+fetchNote : String -> Cmd Msg
+fetchNote id =
+    Http.get
+        { url = "http://localhost:3000/notes?id=eq." ++ id
+        , expect = Http.expectJson SearchResults Note.noteListDecoder
+        }
 
 
 fetchNoteToEdit : String -> Cmd Msg
@@ -408,9 +423,17 @@ viewNote : Note -> Element Msg
 viewNote note =
     column [ width (px 500), spacing 8, Background.color white, padding 8 ]
         [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
-        , row [ Font.size 13 ] [ text <| removeFirstLine <| note.content ]
+        , row [ Font.size 13 ] [ contentAsMarkdown note.content ] -- [ text <| removeFirstLine <| note.content ]
         , row [ Font.size 11, Font.italic ] [ text <| DateTime.humanStringOfDateRecord <| note.dateModified ]
         ]
+
+
+contentAsMarkdown : String -> Element msg
+contentAsMarkdown str =
+    str
+        |> removeFirstLine
+        |> Markdown.toHtml [ Html.Attributes.class "content" ]
+        |> Element.html
 
 
 titleElement : Note -> Element Msg
