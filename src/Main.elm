@@ -14,11 +14,13 @@ import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Http
+import Derberos.Date.Core as DateCore exposing (DateRecord)
 import Random exposing (Seed, initialSeed, step)
 import Uuid
 import Note exposing (Note, noteListDecoder)
 import Time
 import Task
+import DateTime
 
 
 main =
@@ -97,7 +99,7 @@ init seed =
 
 
 subscriptions model =
-    Sub.none
+    Time.every 1000 Tick
 
 
 
@@ -116,7 +118,7 @@ update msg model =
             ( { model | searchString = str, output = str, appMode = SearchMode }, Cmd.none )
 
         Search ->
-            ( { model | appMode = SearchMode }, fetchNotes <| "note=ilike." ++ model.searchString ++ "*" )
+            ( { model | appMode = SearchMode }, fetchNotes <| model.searchString )
 
         SearchResults results ->
             case results of
@@ -149,7 +151,7 @@ update msg model =
 
         CreateNote ->
             ( { model | appMode = CreateMode, newNoteText = "" }
-            , createNoteRequest model.newNoteText (maybeUuidText model.currentUuid)
+            , createNoteRequest model.newNoteText (maybeUuidText model.currentUuid) model.time
             )
 
         NoteCreated result ->
@@ -217,6 +219,19 @@ update msg model =
 --
 
 
+dateTimeString : Model -> String
+dateTimeString model =
+    model.time
+        |> DateCore.posixToCivil
+        |> DateTime.humanStringOfDateRecord
+
+
+
+-- hour   = String.fromInt (Time.toHour   model.zone model.time)
+-- minute = String.fromInt (Time.toMinute model.zone model.time)
+-- second = String.fromInt (Time.toSecond model.zone model.time)
+
+
 makeUuid : Model -> Model
 makeUuid model =
     let
@@ -233,14 +248,21 @@ makeUuid model =
 --
 -- HTTP
 --
+--  note=ilike.*why*
 
 
 fetchNotes : String -> Cmd Msg
 fetchNotes searchString =
-    Http.get
-        { url = "http://localhost:3000/notes?" ++ searchString
-        , expect = Http.expectJson SearchResults Note.noteListDecoder
-        }
+    let
+        queryString =
+            "note=fts." ++ searchString
+
+        -- "note=ilike.*" ++ searchString ++ "*"
+    in
+        Http.get
+            { url = "http://localhost:3000/notes?" ++ queryString
+            , expect = Http.expectJson SearchResults Note.noteListDecoder
+            }
 
 
 fetchNoteToEdit : String -> Cmd Msg
@@ -269,13 +291,13 @@ updateNote note =
         }
 
 
-createNoteRequest : String -> Maybe String -> Cmd Msg
-createNoteRequest newNoteText maybeUuidString =
+createNoteRequest : String -> Maybe String -> Time.Posix -> Cmd Msg
+createNoteRequest newNoteText maybeUuidString posixTime =
     Http.request
         { method = "POST"
         , headers = [ Http.header "Authorization" token ]
         , url = "http://localhost:3000/notes"
-        , body = Http.jsonBody <| Note.newNoteEncoder newNoteText maybeUuidString
+        , body = Http.jsonBody <| Note.newNoteEncoder newNoteText maybeUuidString posixTime
         , expect = Http.expectWhatever NoteCreated
         , timeout = Nothing
         , tracker = Nothing
@@ -336,7 +358,8 @@ mainColumn model =
             , outputDisplay model
 
             -- , messageDisplay model
-            , viewUUID model
+            -- , viewUUID model
+            , row [ centerX, Font.size 11, Font.color white ] [ text <| "UTC " ++ dateTimeString model ]
             ]
         ]
 
@@ -386,7 +409,7 @@ viewNote note =
     column [ width (px 500), spacing 8, Background.color white, padding 8 ]
         [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
         , row [ Font.size 13 ] [ text <| removeFirstLine <| note.content ]
-        , row [ Font.size 11, Font.italic ] [ text <| note.id ]
+        , row [ Font.size 11, Font.italic ] [ text <| DateTime.humanStringOfDateRecord <| note.dateModified ]
         ]
 
 

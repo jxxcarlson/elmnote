@@ -1,4 +1,11 @@
-module DateTime exposing (dateRecordOfString, stringOfDateRecord, europeanStringOfDateRecord, usaStringOfDateRecord)
+module DateTime
+    exposing
+        ( dateRecordOfString
+        , humanStringOfDateRecord
+        , stringOfDateRecord
+        , europeanStringOfDateRecord
+        , usaStringOfDateRecord
+        )
 
 import Parser exposing (..)
 import Derberos.Date.Core exposing (DateRecord)
@@ -36,6 +43,22 @@ stringOfDateRecord dr =
                 |> String.join (":")
     in
         datePart ++ "T" ++ timePart
+
+
+humanStringOfDateRecord : DateRecord -> String
+humanStringOfDateRecord dr =
+    let
+        datePart =
+            [ dr.month, dr.day, dr.year ]
+                |> List.map String.fromInt
+                |> String.join ("-")
+
+        timePart =
+            [ dr.hour, dr.minute ]
+                |> List.map String.fromInt
+                |> String.join (":")
+    in
+        datePart ++ ", " ++ timePart
 
 
 europeanStringOfDateRecord : DateRecord -> String

@@ -9,8 +9,9 @@ module Note
 
 import Json.Decode as D
 import Json.Encode as E
-import Derberos.Date.Core exposing (DateRecord)
+import Derberos.Date.Core as DateCore exposing (DateRecord)
 import DateTime as DT
+import Time
 
 
 type alias Note =
@@ -63,8 +64,8 @@ firstLine str =
         |> Maybe.withDefault ""
 
 
-newNoteEncoder : String -> Maybe String -> E.Value
-newNoteEncoder content maybeUuidString =
+newNoteEncoder : String -> Maybe String -> Time.Posix -> E.Value
+newNoteEncoder content maybeUuidString posixTime =
     case maybeUuidString of
         Nothing ->
             E.null
@@ -74,6 +75,8 @@ newNoteEncoder content maybeUuidString =
                 [ ( "id", E.string uuid )
                 , ( "note", E.string content )
                 , ( "title", E.string <| firstLine content )
+                , ( "created_on", E.string <| DT.stringOfDateRecord <| DateCore.posixToCivil posixTime )
+                , ( "modfied_on", E.string <| DT.stringOfDateRecord <| DateCore.posixToCivil posixTime )
                 ]
 
 
