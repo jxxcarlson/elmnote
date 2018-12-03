@@ -76,6 +76,7 @@ type Msg
     | NewUuid
     | Tick Time.Posix
     | AdjustTimeZone Time.Zone
+    | ClearSearch
 
 
 type alias Flags =
@@ -219,6 +220,9 @@ update msg model =
             , Cmd.none
             )
 
+        ClearSearch ->
+            ( { model | searchResults = [], searchString = "" }, Cmd.none )
+
 
 
 --
@@ -258,12 +262,33 @@ makeUuid model =
 --  note=ilike.*why*
 
 
+transformQuery : String -> String
+transformQuery query =
+    let
+        terms =
+            String.split " " query
+                |> List.map String.trim
+                |> List.filter (\x -> String.length x > 0)
+
+        ilike : String -> String
+        ilike term =
+            "note.ilike.*" ++ term ++ "*"
+
+        searchTerms =
+            List.map ilike terms
+                |> String.join ","
+                |> (\x -> "(" ++ x ++ ")")
+    in
+        "and=" ++ searchTerms
+
+
 fetchNotes : String -> Cmd Msg
 fetchNotes searchString =
     let
         queryString =
-            "note=fts." ++ searchString
+            transformQuery searchString
 
+        -- "note=fts." ++ searchString
         -- "note=ilike.*" ++ searchString ++ "*"
     in
         Http.get
@@ -364,7 +389,8 @@ mainColumn model =
             [ title "Notes"
             , inputSearchText model
             , row [ centerX, spacing 12 ]
-                [ searchButton
+                [ clearButton model
+                , searchButton
                 , updateButton model
                 , newNoteButton model
                 , createButton model
@@ -512,7 +538,7 @@ createNote model =
 
 
 --
--- BUTTON
+-- BUTTONS
 --
 
 
@@ -524,6 +550,19 @@ searchButton =
             , label = el [ centerX, centerY ] (text "Search")
             }
         ]
+
+
+clearButton : Model -> Element Msg
+clearButton model =
+    if model.appMode /= SearchMode then
+        Element.none
+    else
+        row [ centerX ]
+            [ Input.button buttonStyle
+                { onPress = Just ClearSearch
+                , label = el [ centerX, centerY ] (text "Clear")
+                }
+            ]
 
 
 updateButton : Model -> Element Msg
