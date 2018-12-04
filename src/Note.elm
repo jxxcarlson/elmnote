@@ -5,6 +5,7 @@ module Note
         , noteEncoder
         , noteContentEncoder
         , noteListDecoder
+        , noteToString
         )
 
 import Json.Decode as D
@@ -21,6 +22,21 @@ type alias Note =
     , dateModified : DateRecord
     , dateCreated : DateRecord
     }
+
+
+noteToString : Note -> String
+noteToString note =
+    note.content
+        ++ "\n!----\n"
+        ++ "Created: "
+        ++ (DT.stringOfDateRecord note.dateCreated)
+        ++ "\n"
+        ++ "Modified: "
+        ++ (DT.stringOfDateRecord note.dateModified)
+        ++ "\n"
+        ++ "id: "
+        ++ note.id
+        ++ "\n"
 
 
 noteListDecoder : D.Decoder (List Note)

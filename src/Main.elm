@@ -24,6 +24,7 @@ import Task
 import DateTime
 import Markdown
 import Keyboard exposing (Key(..))
+import File.Download as Download
 
 
 main =
@@ -45,6 +46,7 @@ type alias Model =
     { searchString : String
     , output : String
     , searchResults : List Note
+    , exportList : List Note
     , maybeNoteToEdit : Maybe Note
     , newNoteText : String
     , appMode : AppMode
@@ -86,6 +88,8 @@ type Msg
     | KeyMsg Keyboard.Msg
     | AcceptImageUrl String
     | ToggleImage
+    | ExportNotes
+    | ReceiveNotesForExport (Result Http.Error (List Note))
 
 
 type ImageState
@@ -101,6 +105,7 @@ init : Int -> ( Model, Cmd Msg )
 init seed =
     ( { searchString = ""
       , searchResults = []
+      , exportList = []
       , output = "xxx"
       , appMode = SearchMode
       , maybeNoteToEdit = Nothing
@@ -260,7 +265,7 @@ update msg model =
         KeyMsg keyMsg ->
             let
                 nextModel =
-                    { model | pressedKeys = Debug.log "KEYS" <| Keyboard.update keyMsg model.pressedKeys }
+                    { model | pressedKeys = Keyboard.update keyMsg model.pressedKeys }
             in
                 handleKeys nextModel
 
@@ -269,6 +274,32 @@ update msg model =
 
         ToggleImage ->
             handleInsertImage model
+
+        ExportNotes ->
+            ( model, fetchAllNotes )
+
+        ReceiveNotesForExport result ->
+            case result of
+                Ok exportList ->
+                    ( model, download <| exportListToString exportList )
+
+                Err _ ->
+                    ( model, Cmd.none )
+
+
+download : String -> Cmd msg
+download text =
+    Download.string "notes.txt" "application/text" text
+
+
+exportListToString : List Note -> String
+exportListToString noteList =
+    let
+        separator =
+            "!--------\n"
+    in
+        noteList
+            |> List.foldl (\item acc -> acc ++ (Note.noteToString item) ++ separator) ""
 
 
 
@@ -311,7 +342,14 @@ handleNewNote model =
         newModel =
             makeUuid model
     in
-        ( { newModel | appMode = CreateMode, newNoteText = "", pressedKeys = [] }, Cmd.none )
+        ( { newModel
+            | appMode = CreateMode
+            , maybeNoteToEdit = Nothing
+            , newNoteText = ""
+            , pressedKeys = []
+          }
+        , Cmd.none
+        )
 
 
 handleCreateNote : Model -> ( Model, Cmd Msg )
@@ -381,7 +419,13 @@ appendImageUrl model =
     in
         case model.maybeNoteToEdit of
             Nothing ->
-                ( { model | pressedKeys = [], imageState = ImageRestingState }, Cmd.none )
+                ( { model
+                    | pressedKeys = []
+                    , imageState = ImageRestingState
+                    , newNoteText = model.newNoteText ++ "\n" ++ url_
+                  }
+                , Cmd.none
+                )
 
             Just note ->
                 let
@@ -468,6 +512,14 @@ fetchNotes searchString =
             { url = "http://localhost:3000/notes?" ++ queryString
             , expect = Http.expectJson SearchResults Note.noteListDecoder
             }
+
+
+fetchAllNotes : Cmd Msg
+fetchAllNotes =
+    Http.get
+        { url = "http://localhost:3000/notes"
+        , expect = Http.expectJson ReceiveNotesForExport Note.noteListDecoder
+        }
 
 
 fetchNote : String -> Cmd Msg
@@ -584,13 +636,18 @@ mainColumn model =
                 , createButton model
                 ]
             , noteDisplay model
-            , outputDisplay model
-
-            -- , messageDisplay model
-            -- , viewUUID model
-            , row [ centerX, Font.size 11, Font.color white ] [ text <| "UTC " ++ dateTimeString model ]
+            , row [ centerX, spacing 20 ]
+                [ searchResultCountDisplay model
+                , dateTimeDisplay model
+                , messageDisplay model
+                , exportButton
+                ]
             ]
         ]
+
+
+dateTimeDisplay model =
+    column [ centerX, Font.size 11, Font.color white ] [ text <| "UTC " ++ dateTimeString model ]
 
 
 searchOrImageUrl : Model -> Element Msg
@@ -626,21 +683,21 @@ title str =
     row [ centerX, Font.bold, Font.color white ] [ text str ]
 
 
-outputDisplay : Model -> Element msg
-outputDisplay model =
-    row [ centerX, Font.color white, Font.size 12 ]
+searchResultCountDisplay : Model -> Element msg
+searchResultCountDisplay model =
+    column [ centerX, Font.color white, Font.size 12 ]
         [ text <| "Notes: " ++ (String.fromInt <| List.length <| model.searchResults) ]
 
 
 messageDisplay : Model -> Element msg
 messageDisplay model =
-    row [ centerX, Font.color white, Font.size 12 ]
+    column [ centerX, Font.color white, Font.size 12 ]
         [ text <| model.message ]
 
 
 viewNotes : List Note -> Element Msg
 viewNotes notelist =
-    column [ spacing 12, scrollbarY, clipX, height (px 520) ] (List.map viewNote notelist)
+    column [ spacing 12, scrollbarY, clipX, height (px 560) ] (List.map viewNote notelist)
 
 
 viewNote : Note -> Element Msg
@@ -756,6 +813,16 @@ searchButton =
         [ Input.button buttonStyle
             { onPress = Just Search
             , label = el [ centerX, centerY ] (text "Search")
+            }
+        ]
+
+
+exportButton : Element Msg
+exportButton =
+    row [ centerX ]
+        [ Input.button smallButtonStyle
+            { onPress = Just ExportNotes
+            , label = el [ centerX, centerY ] (text "Export")
             }
         ]
 
@@ -890,6 +957,16 @@ buttonStyle =
     , Font.bold
     , paddingXY 15 8
     , height (px 30)
+    ]
+
+
+smallButtonStyle =
+    [ Background.color lightCharcoal
+    , Font.color white
+    , Font.size 11
+    , paddingXY 8 4
+    , height (px 25)
+    , alignRight
     ]
 
 
