@@ -6,6 +6,8 @@ module Note
         , noteContentEncoder
         , noteListDecoder
         , noteToString
+        , noteFromString
+        , exampleNote
         )
 
 import Json.Decode as D
@@ -13,6 +15,8 @@ import Json.Encode as E
 import Derberos.Date.Core as DateCore exposing (DateRecord)
 import DateTime as DT
 import Time
+import Parser exposing (..)
+import DateTime
 
 
 type alias Note =
@@ -37,6 +41,64 @@ noteToString note =
         ++ "id: "
         ++ note.id
         ++ "\n"
+
+
+parseStringUntil : String -> Parser String
+parseStringUntil terminator =
+    getChompedString <|
+        succeed ()
+            |. chompUntil terminator
+
+
+type alias Note2 =
+    { content : String
+    , dateCreated : DateRecord
+    , dateModified : DateRecord
+    , id : String
+    }
+
+
+noteOfNote2 : Note2 -> Note
+noteOfNote2 note2 =
+    { id = note2.id
+    , title = firstLine note2.content
+    , content = note2.content
+    , dateCreated = note2.dateCreated
+    , dateModified = note2.dateModified
+    }
+
+
+noteFromString : String -> Result (List DeadEnd) Note
+noteFromString str =
+    Parser.run noteParser str
+
+
+noteParser : Parser Note
+noteParser =
+    (succeed Note2
+        |= (parseStringUntil "\n!----\n")
+        |. symbol "\n!----\n"
+        |. symbol "Created: "
+        |= ((parseStringUntil "\n") |> Parser.map DateTime.dateRecordOfString)
+        |. symbol "\n"
+        |. symbol "Modified: "
+        |= ((parseStringUntil "\n") |> Parser.map DateTime.dateRecordOfString)
+        |. symbol "\n"
+        |. symbol "id: "
+        |= (parseStringUntil "\n")
+        |. symbol "\n"
+    )
+        |> Parser.map noteOfNote2
+
+
+exampleNote =
+    """Racket slack password: lobo4795!
+Yada yada!!
+!----
+Created: 2018-10-30T14:13:10
+Modified: 2018-10-30T14:13:10
+id: 398c31a6-e7fc-4b37-acea-e761c9e70781
+"""
 
 
 noteListDecoder : D.Decoder (List Note)
