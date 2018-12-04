@@ -24,7 +24,9 @@ import Task
 import DateTime
 import Markdown
 import Keyboard exposing (Key(..))
+import File exposing (File)
 import File.Download as Download
+import File.Select as Select
 
 
 main =
@@ -34,6 +36,11 @@ main =
         , update = update
         , subscriptions = subscriptions
         }
+
+
+type ImportStatus
+    = NoImport
+    | ImportReady
 
 
 type AppMode
@@ -58,6 +65,7 @@ type alias Model =
     , pressedKeys : List Key
     , imageUrl : String
     , imageState : ImageState
+    , importStatus : ImportStatus
     }
 
 
@@ -90,6 +98,10 @@ type Msg
     | ToggleImage
     | ExportNotes
     | ReceiveNotesForExport (Result Http.Error (List Note))
+    | ImportRequested
+    | ImportLoaded File
+    | ProcessImport String
+    | SaveImport
 
 
 type ImageState
@@ -118,6 +130,7 @@ init seed =
       , pressedKeys = []
       , imageUrl = ""
       , imageState = ImageRestingState
+      , importStatus = NoImport
       }
     , Task.perform AdjustTimeZone Time.here
     )
@@ -286,6 +299,34 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
+        ImportRequested ->
+            ( model, requestImport )
+
+        ImportLoaded file ->
+            ( model, read file )
+
+        ProcessImport str ->
+            case Note.noteListFromString str of
+                Ok noteList ->
+                    ( { model
+                        | message = "Import OK"
+                        , searchResults = noteList
+                        , importStatus = ImportReady
+                      }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( { model | message = "Bad import" }, Cmd.none )
+
+        SaveImport ->
+            ( { model | importStatus = NoImport }, createNoteListRequest model.searchResults )
+
+
+read : File -> Cmd Msg
+read file =
+    Task.perform ProcessImport (File.toString file)
+
 
 download : String -> Cmd msg
 download text =
@@ -300,6 +341,11 @@ exportListToString noteList =
     in
         noteList
             |> List.foldl (\item acc -> acc ++ (Note.noteToString item) ++ separator) ""
+
+
+requestImport : Cmd Msg
+requestImport =
+    Select.file [ "application/text" ] ImportLoaded
 
 
 
@@ -366,7 +412,7 @@ handleClearSearch model =
 
 handleSearch : Model -> ( Model, Cmd Msg )
 handleSearch model =
-    ( { model | appMode = SearchMode }, fetchNotes <| model.searchString )
+    ( { model | appMode = SearchMode, importStatus = NoImport }, fetchNotes <| model.searchString )
 
 
 handleUpdateNote : Model -> ( Model, Cmd Msg )
@@ -569,6 +615,19 @@ createNoteRequest newNoteText maybeUuidString posixTime =
         }
 
 
+createNoteListRequest : List Note -> Cmd Msg
+createNoteListRequest noteList =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" token ]
+        , url = "http://localhost:3000/notes"
+        , body = Http.jsonBody <| Note.noteListEncoder noteList
+        , expect = Http.expectWhatever NoteCreated
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 deleteNote : Note -> Cmd Msg
 deleteNote note =
     Http.request
@@ -641,6 +700,8 @@ mainColumn model =
                 , dateTimeDisplay model
                 , messageDisplay model
                 , exportButton
+                , importButton model
+                , saveImportButton model
                 ]
             ]
         ]
@@ -712,7 +773,9 @@ viewNote note =
 contentAsMarkdown : String -> Element msg
 contentAsMarkdown str =
     str
+        |> String.trim
         |> removeFirstLine
+        |> String.trim
         |> Markdown.toHtml [ Html.Attributes.class "content" ]
         |> Element.html
 
@@ -825,6 +888,36 @@ exportButton =
             , label = el [ centerX, centerY ] (text "Export")
             }
         ]
+
+
+importButton : Model -> Element Msg
+importButton model =
+    case model.importStatus of
+        ImportReady ->
+            Element.none
+
+        NoImport ->
+            row [ centerX ]
+                [ Input.button smallButtonStyle
+                    { onPress = Just ImportRequested
+                    , label = el [ centerX, centerY ] (text "Import")
+                    }
+                ]
+
+
+saveImportButton : Model -> Element Msg
+saveImportButton model =
+    case model.importStatus of
+        NoImport ->
+            Element.none
+
+        ImportReady ->
+            row [ centerX ]
+                [ Input.button smallButtonStyle
+                    { onPress = Just SaveImport
+                    , label = el [ centerX, centerY ] (text "Save Import")
+                    }
+                ]
 
 
 clearButton : Model -> Element Msg

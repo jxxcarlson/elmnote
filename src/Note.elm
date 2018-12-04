@@ -3,11 +3,12 @@ module Note
         ( Note
         , newNoteEncoder
         , noteEncoder
+        , noteListEncoder
         , noteContentEncoder
         , noteListDecoder
         , noteToString
         , noteFromString
-        , exampleNote
+        , noteListFromString
         )
 
 import Json.Decode as D
@@ -16,6 +17,7 @@ import Derberos.Date.Core as DateCore exposing (DateRecord)
 import DateTime as DT
 import Time
 import Parser exposing (..)
+import Parser.Extras exposing (many)
 import DateTime
 
 
@@ -68,9 +70,19 @@ noteOfNote2 note2 =
     }
 
 
+noteListFromString : String -> Result (List DeadEnd) (List Note)
+noteListFromString str =
+    Parser.run noteListParser str
+
+
 noteFromString : String -> Result (List DeadEnd) Note
 noteFromString str =
     Parser.run noteParser str
+
+
+noteListParser : Parser (List Note)
+noteListParser =
+    many noteParser
 
 
 noteParser : Parser Note
@@ -87,6 +99,7 @@ noteParser =
         |. symbol "id: "
         |= (parseStringUntil "\n")
         |. symbol "\n"
+        |. symbol "!--------\n"
     )
         |> Parser.map noteOfNote2
 
@@ -98,6 +111,25 @@ Yada yada!!
 Created: 2018-10-30T14:13:10
 Modified: 2018-10-30T14:13:10
 id: 398c31a6-e7fc-4b37-acea-e761c9e70781
+!--------
+"""
+
+
+exampleNoteList =
+    """Test XXXX (1)
+Ho ho ho!!
+!----
+Created: 2018-10-30T14:13:10
+Modified: 2018-10-30T14:13:10
+id: 998c31a6-e7fc-4a37-acea-e764c9e70781
+!--------
+Test XXXX (2)
+Ha ha ha!!
+!----
+Created: 2018-10-30T14:13:10
+Modified: 2018-10-30T14:13:10
+id: b151504c-56c8-5a05-8cdf-0cc50d93dc56
+!--------
 """
 
 
@@ -125,6 +157,11 @@ noteEncoder note =
         , ( "created_on", E.string <| DT.stringOfDateRecord <| note.dateCreated )
         , ( "modfied_on", E.string <| DT.stringOfDateRecord <| note.dateModified )
         ]
+
+
+noteListEncoder : List Note -> E.Value
+noteListEncoder noteList =
+    E.list noteEncoder noteList
 
 
 noteContentEncoder : Note -> E.Value
