@@ -139,7 +139,8 @@ init seed =
 subscriptions model =
     Sub.batch
         [ Sub.map KeyMsg Keyboard.subscriptions
-        , Time.every 1000 Tick
+
+        -- , Time.every 1000 Tick
         ]
 
 
@@ -356,7 +357,7 @@ requestImport =
 
 handleKeys : Model -> ( Model, Cmd Msg )
 handleKeys model =
-    case model.pressedKeys of
+    case (Debug.log "PK") model.pressedKeys of
         [ Character "n", Control ] ->
             handleNewNote model
 
@@ -412,7 +413,14 @@ handleClearSearch model =
 
 handleSearch : Model -> ( Model, Cmd Msg )
 handleSearch model =
-    ( { model | appMode = SearchMode, importStatus = NoImport }, fetchNotes <| model.searchString )
+    ( { model
+        | appMode = SearchMode
+        , imageState = ImageRestingState
+        , importStatus = NoImport
+        , pressedKeys = []
+      }
+    , fetchNotes <| model.searchString
+    )
 
 
 handleUpdateNote : Model -> ( Model, Cmd Msg )
@@ -422,7 +430,7 @@ handleUpdateNote model =
     else
         case model.maybeNoteToEdit of
             Nothing ->
-                ( model, Cmd.none )
+                ( { model | pressedKeys = [] }, Cmd.none )
 
             Just note ->
                 ( { model | pressedKeys = [] }, updateNote note )
@@ -432,7 +440,7 @@ handleEditNote : Model -> ( Model, Cmd Msg )
 handleEditNote model =
     case List.head model.searchResults of
         Nothing ->
-            ( model, Cmd.none )
+            ( { model | pressedKeys = [] }, Cmd.none )
 
         Just note ->
             ( { model
@@ -455,7 +463,7 @@ handleInsertImage model =
 
             -- ( { model | imageState = ImageRestingState }, Cmd.none )
             ImageRestingState ->
-                ( { model | imageState = ImageInputState }, Cmd.none )
+                ( { model | imageState = ImageInputState, pressedKeys = [] }, Cmd.none )
 
 
 appendImageUrl model =
@@ -827,7 +835,7 @@ inputSearchText model =
 
 inputImageUrl : Model -> Element Msg
 inputImageUrl model =
-    Input.text [ Background.color (rgb255 240 240 255) ]
+    Input.text [ Background.color (rgb255 140 140 255) ]
         { onChange = AcceptImageUrl
         , text = model.imageUrl
         , placeholder = Nothing
