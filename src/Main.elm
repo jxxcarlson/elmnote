@@ -27,6 +27,7 @@ import Keyboard exposing (Key(..))
 import File exposing (File)
 import File.Download as Download
 import File.Select as Select
+import String.Extra
 
 
 main =
@@ -139,8 +140,7 @@ init seed =
 subscriptions model =
     Sub.batch
         [ Sub.map KeyMsg Keyboard.subscriptions
-
-        -- , Time.every 1000 Tick
+        , Time.every 1000 Tick
         ]
 
 
@@ -357,7 +357,7 @@ requestImport =
 
 handleKeys : Model -> ( Model, Cmd Msg )
 handleKeys model =
-    case (Debug.log "PK") model.pressedKeys of
+    case model.pressedKeys of
         [ Character "n", Control ] ->
             handleNewNote model
 
@@ -773,7 +773,7 @@ viewNote : Note -> Element Msg
 viewNote note =
     column [ width (px 500), spacing 8, Background.color white, padding 8 ]
         [ row [ Font.size 13, Font.bold, width fill ] [ titleElement note, editButton note.id ]
-        , row [ Font.size 13 ] [ contentAsMarkdown note.content ] -- [ text <| removeFirstLine <| note.content ]
+        , row [ Font.size 13 ] [ contentAsMarkdown <| String.Extra.softWrap 70 note.content ] -- [ text <| removeFirstLine <| note.content ]
         , row [ Font.size 11, Font.italic ] [ text <| DateTime.humanStringOfDateRecord <| note.dateModified ]
         ]
 
